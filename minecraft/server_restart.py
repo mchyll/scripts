@@ -1,6 +1,7 @@
 from mcrcon import mcrcon
 import argparse
 import socket
+import errno
 import subprocess
 import time
 
@@ -30,6 +31,11 @@ def seconds_to_str(s: int) -> str:
         return ', '.join(result[:-1]) + ' and ' + result[-1]
 
 
+def start_server():
+    subprocess.run(['tmux', 'kill-session', '-t', 'mc'])
+    subprocess.run(['tmux', 'new-session', '-d', '-s', 'mc', 'bash --init-file ServerStart.sh'], cwd='/home/magnus/ftb_server')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--notify', type=int, metavar='SECONDS', help='just send notification that server will restart in SECONDS')
@@ -37,31 +43,37 @@ def main():
     parser.add_argument('password', help='the server RCON password')
     args = parser.parse_args()
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(('localhost', 25575))
-
     try:
-        if not mcrcon.login(sock, args.password):
-            print('Incorrect RCON password')
-            return
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(('localhost', 25575))
 
-        if args.notify:
-            response = mcrcon.command(sock, 'say Server will restart in {}'.format(seconds_to_str(args.notify)))
-            print(response)
+        try:
+            if not mcrcon.login(sock, args.password):
+                print('Incorrect RCON password')
+                return
 
-        elif args.restart:
-            response = mcrcon.command(sock, 'say Server will restart now')
-            print(response)
-            response = mcrcon.command(sock, 'save-all')
-            print(response)
-            response = mcrcon.command(sock, 'stop')
-            print(response)
-            time.sleep(5)
-            subprocess.run(['tmux', 'kill-session', '-t', 'mc'])
-            subprocess.run(['tmux', 'new-session', '-d', '-s', 'mc', 'bash --init-file ServerStart.sh'], cwd='/home/magnus/ftb_server')
+            if args.notify:
+                response = mcrcon.command(sock, 'say Server will restart in {}'.format(seconds_to_str(args.notify)))
+                print(response)
 
-    finally:
-        sock.close()
+            elif args.restart:
+                response = mcrcon.command(sock, 'say Server will restart now')
+                print(response)
+                response = mcrcon.command(sock, 'save-all')
+                print(response)
+                response = mcrcon.command(sock, 'stop')
+                print(response)
+                time.sleep(5)
+                start_server()
+
+        finally:
+            sock.close()
+
+    except socket.error as err:
+        print('Error connecting to server: ', err)
+        if err.errno == errno.ECONNREFUSED:
+            print('Just starting the server instead')
+            start_server()
 
 
 if __name__ == '__main__':
