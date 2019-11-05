@@ -32,9 +32,9 @@ def seconds_to_str(s: int) -> str:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--notify', type=int)
-    parser.add_argument('--restart', action='store_true')
-    parser.add_argument('password')
+    parser.add_argument('--notify', type=int, metavar='SECONDS', help='just send notification that server will restart in SECONDS')
+    parser.add_argument('--restart', action='store_true', help='restart server')
+    parser.add_argument('password', help='the server RCON password')
     args = parser.parse_args()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -58,7 +58,7 @@ def main():
             print(response)
             time.sleep(5)
             subprocess.run(['tmux', 'kill-session', '-t', 'mc'])
-            subprocess.run(['tmux', 'new-session', '-d', '-s', 'mc', 'bash --init-file /home/magnus/ftb_server/ServerStart.sh'])
+            subprocess.run(['tmux', 'new-session', '-d', '-s', 'mc', 'bash --init-file ServerStart.sh'], cwd='/home/magnus/ftb_server')
 
     finally:
         sock.close()
