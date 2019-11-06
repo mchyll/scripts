@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 from mcrcon import mcrcon
 import argparse
 import socket
@@ -6,7 +8,28 @@ import subprocess
 import time
 
 
+class RCON:
+    def __init__(self, password: str, host='localhost', port=25575):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((host, port))
+        if not mcrcon.login(self.sock, password):
+            raise Exception('Wrong RCON password')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.sock.__exit__()
+
+    def cmd(self, command: str) -> str:
+        return mcrcon.command(self.sock, command)
+
+
 def seconds_to_str(s: int) -> str:
+    """
+    Returns a string describing the given number of seconds in a human-readable form.
+    """
+
     s = abs(s)
     result = []
 
@@ -33,8 +56,12 @@ def seconds_to_str(s: int) -> str:
 
 
 def start_server(kill_session=False):
+    """
+    Starts the minecraft server in a tmux session.
+    """
     if kill_session:
         subprocess.run(['tmux', 'kill-session', '-t', 'mc'])
+
     subprocess.run(['tmux', 'new-session', '-d', '-s', 'mc', 'bash --init-file ServerStart.sh'], cwd='/home/magnus/ftb_server')
 
 
@@ -43,35 +70,31 @@ def main(args):
         print('Starting the server')
         start_server()
 
-    else:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect(('localhost', 25575))
+    elif args.notify_restart:
+        with RCON(args.password) as rcon:
+            print(rcon.cmd('say Server will restart in {}'.format(seconds_to_str(args.notify_restart))))
 
-            try:
-                if not mcrcon.login(sock, args.password):
-                    print('Incorrect RCON password')
-                    return
+    elif args.restart:
+        with RCON(args.password) as rcon:
+            print(rcon.cmd('say Server will restart now'))
+            print(rcon.cmd('save-all'))
+            print(rcon.cmd('stop'))
 
-                if args.notify_restart:
-                    print(mcrcon.command(sock, 'say Server will restart in {}'.format(seconds_to_str(args.notify_restart))))
+        time.sleep(5)
+        start_server(kill_session=True)
 
-                elif args.restart:
-                    print(mcrcon.command(sock, 'say Server will restart now'))
-                    print(mcrcon.command(sock, 'save-all'))
-                    print(mcrcon.command(sock, 'stop'))
-                    time.sleep(5)
-                    start_server(kill_session=True)
-
-            except socket.error as err:
-                print('Error connecting to RCON: ', err)
+    elif args.cmd:
+        with RCON(args.password) as rcon:
+            print(rcon.cmd(args.cmd))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--notify-restart', '-n', type=int, metavar='SECONDS', help='send notification that server will restart in SECONDS')
-    parser.add_argument('--restart', '-r', action='store_true', help='restart server')
-    parser.add_argument('--start', '-s', action='store_true', help='start server')
-    parser.add_argument('--cmd', '-c', metavar='COMMAND', help='send RCON command')
+    actions = parser.add_mutually_exclusive_group(required=True)
+    actions.add_argument('--notify-restart', '-n', type=int, metavar='SECONDS', help='send notification that server will restart in SECONDS')
+    actions.add_argument('--restart', '-r', action='store_true', help='restart server')
+    actions.add_argument('--start', '-s', action='store_true', help='start server')
+    actions.add_argument('--cmd', '-c', metavar='COMMAND', help='send RCON command')
     parser.add_argument('password', help='the server RCON password')
     args = parser.parse_args()
     main(args)
