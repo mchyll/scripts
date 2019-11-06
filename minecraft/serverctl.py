@@ -10,12 +10,15 @@ import time
 
 class RCON:
     def __init__(self, password: str, host='localhost', port=25575):
+        self.password = password
+        self.host = host
+        self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((host, port))
-        if not mcrcon.login(self.sock, password):
-            raise Exception('Wrong RCON password')
 
     def __enter__(self):
+        self.sock.connect((self.host, self.port))
+        if not mcrcon.login(self.sock, self.password):
+            raise Exception('Wrong RCON password')
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -66,25 +69,31 @@ def start_server(kill_session=False):
 
 
 def main(args):
+    rcon = RCON(args.password, args.host, args.port)
+
     if args.start:
-        print('Starting the server')
         start_server()
 
     elif args.notify_restart:
-        with RCON(args.password) as rcon:
-            print(rcon.cmd('say Server will restart in {}'.format(seconds_to_str(args.notify_restart))))
+        with rcon:
+            rcon.cmd('say Server will restart in {}'.format(seconds_to_str(args.notify_restart)))
 
     elif args.restart:
-        with RCON(args.password) as rcon:
-            print(rcon.cmd('say Server will restart now'))
-            print(rcon.cmd('save-all'))
-            print(rcon.cmd('stop'))
+        try:
+            with rcon:
+                rcon.cmd('say Server will restart now')
+                rcon.cmd('save-all')
+                rcon.cmd('stop')
 
+        except (socket.error, Exception) as err:
+            print('Error connecting to server for stopping it: ', err)
+
+        # Wait some seconds for the server to shut down before restarting it
         time.sleep(5)
         start_server(kill_session=True)
 
     elif args.cmd:
-        with RCON(args.password) as rcon:
+        with rcon:
             print(rcon.cmd(args.cmd))
 
 
@@ -95,6 +104,8 @@ if __name__ == '__main__':
     actions.add_argument('--restart', '-r', action='store_true', help='restart server')
     actions.add_argument('--start', '-s', action='store_true', help='start server')
     actions.add_argument('--cmd', '-c', metavar='COMMAND', help='send RCON command')
-    parser.add_argument('password', help='the server RCON password')
+    parser.add_argument('--password', '-p', required=True, help='the server RCON password')
+    parser.add_argument('--host', '-H', default='localhost', help='the RCON port. Default: localhost')
+    parser.add_argument('--port', '-P', default=25575, help='the RCON host. Default: 25575')
     args = parser.parse_args()
     main(args)
