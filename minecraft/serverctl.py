@@ -123,7 +123,7 @@ if __name__ == '__main__':
     password = None
     if args.pwfile:
         with open(args.pwfile) as file:
-            password = file.readline()
+            password = file.readline().strip()
 
     ctl = ServerCtl(args.host, args.port, password)
 
