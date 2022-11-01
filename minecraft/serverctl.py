@@ -115,6 +115,7 @@ if __name__ == '__main__':
     actions.add_argument('--restart', '-r', action='store_true', help='restart server')
     actions.add_argument('--start', '-s', action='store_true', help='start server')
     actions.add_argument('--cmd', '-c', metavar='COMMAND', help='send RCON command')
+    actions.add_argument('--test', '-t', action='store_true', help='test')
     parser.add_argument('--pwfile', '-p', default=None, help='a file containing the server RCON password')
     parser.add_argument('--host', '-H', default='localhost', help='the RCON port. Default: localhost')
     parser.add_argument('--port', '-P', type=int, default=25575, help='the RCON host. Default: 25575')
@@ -138,3 +139,11 @@ if __name__ == '__main__':
 
     elif args.cmd:
         print(ctl.exec_cmd(args.cmd))
+
+    elif args.test:
+        with ctl._create_rcon_connection() as rcon:
+            print(rcon.cmd('list'))
+            print(rcon.cmd('list'))
+            print(rcon.cmd('clone'))
+            print(rcon.cmd('list'))
+            print(rcon.cmd('help 8'))
